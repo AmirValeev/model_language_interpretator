@@ -1,0 +1,14 @@
+program
+{
+int w = 898, a = -35345, b = 6, c;
+real f = 3.45, e = -66.23;
+string x = "asjbx", y, z = "abcd";
+while (a = b = 5) {w = b = 367 - e; }
+A:
+a = 1;
+goto L1;
+goto L1;
+L1:
+a = 1;
+goto A;
+}
