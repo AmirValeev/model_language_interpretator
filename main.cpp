@@ -21,6 +21,8 @@ enum type_of_lex
 
 enum type_of_ident { INT_VAR, REAL_VAR, STR_VAR };
 
+enum type_of_expression { num, str };
+
 
 void print_type(type_of_lex t)
 {
@@ -79,6 +81,8 @@ public:
     string get_str_value () const {if (type_of_id == STR_VAR) return str_val; else { string err = "Trying to get str value from not str variable!"; throw err;}}
     int get_int_value () const {if (type_of_id == INT_VAR) return int_val; else { string err = "Trying to get int value from not int variable!"; throw err;}}
     double get_real_value () const {if (type_of_id == REAL_VAR) return d_val; else { string err = "Trying to get real value from not real variable!"; throw err;}}
+
+
 
     void set_value (int v) { int_val = v; }
     void set_value (double v) { d_val = v; }
@@ -238,7 +242,6 @@ int find_label (const string & buf)
 
 
 
-//-----------------------------------------------------------------------------------------------------------
 
 //---------------------------------------------------------------------------------------------------------
 
@@ -283,6 +286,10 @@ public:
         print_type(l.type);
         if (l.type == IDENTIFIER) {s << ", " << l.number << "): " << table_of_ident[l.number] << '\n';}
         else if (l.type == LABEL) {s << ", " << l.number << "): " << table_of_label[l.number] << '\n';}
+        else if (l.type == CONST_INT) { s << ", " << l.number << "): " << l.int_val << '\n';}
+        else if (l.type == CONST_REAL) { s << ", " << l.number << "): " << l.d_val << '\n';}
+        else if (l.type == CONST_STR) { s << ", " << l.number << "): " << l.str_val << '\n';}
+        else if (l.type == POLIZ_ADDRESS) {s << ", " << l.number << "): " << table_of_ident[l.number] << '\n';}
         else s << ", " << l.number << ")\n";
         return s;
     }
@@ -470,9 +477,19 @@ Lexeme Lex_Scanner::get_lex ( ) {
     } while ( true );
 }
 
+
+
 //---------------------------------------------------------------------------------------------------------
 
-
+template <class T, class T_EL>
+void from_st ( T & st, T_EL & i ) {
+    try {
+        i = st.top(); st.pop();
+    }
+    catch (...){
+        cout << "Error in from_st";
+    }
+}
 
 class Parser
 {
@@ -981,7 +998,8 @@ void Parser::F()
         gl();
         st_lex.push(INT);
         st_lex.push(MIN);
-        poliz.push_back(Lexeme(CONST_INT));
+        cout << "HELLLOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO - " << curr_lex.int_val <<'\n';
+        poliz.push_back(Lexeme(0, CONST_INT));
         F();
         check_op();
     }
@@ -989,6 +1007,7 @@ void Parser::F()
     {
         check_id();
         number = curr_lex.get_number();
+        //if (!table_of_ident[number].get_init()) throw "Variable is not initialized";
         poliz.push_back ( Lexeme ( IDENTIFIER , number) );
         gl();
     }
@@ -1034,8 +1053,348 @@ void Parser::F()
 
 
 //---------------------------------------------------------------------------------------------------------
+
+
+class Executor
+{
+
+public:
+    void execute ( vector<Lexeme> & poliz );
+
+};
+
+
+void Executor::execute ( vector<Lexeme> & poliz ) {
+    type_of_expression typeOfExpression = num;
+
+    Lexeme pol_el;
+    stack <double> args;
+    stack <string> args_str;
+    int index = 0, size = poliz.size();
+    string s, l;
+    double d, r, i, j;
+
+    while ( index < size ) {
+/*
+        cout << "ARGS:\n";
+        if (!args.empty()) cout << args.top() << '\n';
+        cout << "ARGS_STR:\n";
+        if (!args_str.empty()) cout << args_str.top() << '\n';
+        cout << typeOfExpression << " <- \n";
+        cout << '\n';
+*/
+        pol_el = poliz[index];
+        switch (pol_el.get_type()) {
+
+            case CONST_INT:
+                typeOfExpression = num;
+                args.push( pol_el.int_val );
+                break;
+
+            case CONST_REAL:
+                typeOfExpression = num;
+                args.push( pol_el.d_val );
+                break;
+
+            case CONST_STR:
+                typeOfExpression = str;
+                args_str.push( pol_el.str_val );
+                break;
+
+            case IDENTIFIER:
+                i = pol_el.get_number();
+                if (table_of_ident[i].get_init()) {
+                    switch (table_of_ident[i].get_type_of_id()) {
+                        case STR_VAR:
+                            typeOfExpression = str;
+                            args_str.push(table_of_ident[pol_el.get_number()].get_str_value());
+                            break;
+                        case INT_VAR:
+                            typeOfExpression = num;
+                            args.push(table_of_ident[pol_el.get_number()].get_int_value());
+                            break;
+                        case REAL_VAR:
+                            typeOfExpression = num;
+                            args.push(table_of_ident[pol_el.get_number()].get_real_value());
+                            break;
+                    }
+                    break;
+                } else throw "Variable not initialized";
+
+            case POLIZ_ADDRESS: case POLIZ_LABEL:
+                args.push(pol_el.get_number());
+                break;
+
+            case NOT:
+                from_st( args, i );
+                args.push( !i );
+                break;
+
+            case OR:
+                from_st( args, i );
+                from_st( args, j );
+                args.push ( j || i );
+                break;
+
+            case AND:
+                from_st ( args, i );
+                from_st ( args, j );
+                args.push ( j && i );
+                break;
+
+            case POLIZ_GO:
+                from_st ( args, i );
+                index = i - 1;
+                break;
+
+            case POLIZ_FGO:
+                from_st ( args, i );
+                from_st ( args, j );
+                if ( !j ) index = i - 1;
+                break;
+
+            case WRITE:
+                while (!args.empty() || !args_str.empty()) {
+                    if (typeOfExpression == num) {
+                        from_st(args, j);
+                        cout << j << endl;
+                    } else {
+                        from_st(args_str, s);
+                        cout << s << endl;
+                    }
+                }
+                break;
+
+            case READ:
+                int k;
+                from_st ( args, i );
+                if ( table_of_ident[i].get_type_of_id() == INT_VAR ) {
+                    cout << "Input INTEGER value for - " << table_of_ident[i].get_name () << endl;
+                    cin >> k;
+                    table_of_ident[i].set_value((int)k);
+                }
+                else if (table_of_ident[i].get_type_of_id() == REAL_VAR )
+                {
+                    cout << "Input REAL value for - " << table_of_ident[i].get_name () << endl;
+                    cin >> j;
+                    table_of_ident[i].set_value((double)j);
+                }
+                else {
+                    cout << "Input STRING value for - " << table_of_ident[i].get_name() << endl;
+                    cin >> s;
+                    table_of_ident[i].set_value(s);
+                }
+                table_of_ident[i].set_init();
+                break;
+
+            case PLUS:
+                if (typeOfExpression == num) {
+                    from_st(args, i);
+                    from_st(args, j);
+                    args.push(i + j);
+                } else {
+                    from_st(args_str, s);
+                    from_st(args_str, l);
+                    args_str.push(s + l);
+                }
+                break;
+
+            case MUL:
+                from_st ( args, i );
+                from_st ( args, j );
+                args.push ( i * j );
+                break;
+
+            case MIN:
+                from_st ( args, i );
+                from_st ( args, j );
+                args.push ( j - i );
+                break;
+
+            case SLASH:
+                from_st ( args, i );
+                from_st ( args, j );
+                if (!i) {
+                    args.push ( j / i );
+                    break;
+                }
+                else
+                    throw "Divizion by zero";
+
+            case TWOEQUAL:
+                if (typeOfExpression == num) {
+                    from_st(args, i);
+                    from_st(args, j);
+                    args.push(i == j);
+                } else {
+                        from_st(args_str, s);
+                        from_st(args_str, l);
+                        args.push(s == l);
+                        typeOfExpression = num;
+                }
+                break;
+
+            case LS:
+                if (typeOfExpression == num) {
+                    from_st(args, i);
+                    from_st(args, j);
+                    args.push(i > j);
+                } else {
+                    from_st(args_str, s);
+                    from_st(args_str, l);
+                    args.push(s > l);
+                    typeOfExpression = num;
+                }
+                break;
+
+            case GE:
+                if (typeOfExpression == num) {
+                    from_st(args, i);
+                    from_st(args, j);
+                    args.push(i < j);
+                } else {
+                    from_st(args_str, s);
+                    from_st(args_str, l);
+                    args.push(s < l);
+                    typeOfExpression = num;
+                }
+                break;
+
+            case LEQ:
+                if (typeOfExpression == num) {
+                    from_st(args, i);
+                    from_st(args, j);
+                    args.push(i >= j);
+                } else {
+                    from_st(args_str, s);
+                    from_st(args_str, l);
+                    args.push(s >= l);
+                    typeOfExpression = num;
+                }
+                break;
+
+            case GEQ:
+                if (typeOfExpression == num) {
+                    from_st(args, i);
+                    from_st(args, j);
+                    args.push(i <= j);
+                } else {
+                    from_st(args_str, s);
+                    from_st(args_str, l);
+                    args.push(s <= l);
+                    typeOfExpression = num;
+                }
+                break;
+
+            case NEQ:
+                if (typeOfExpression == num) {
+                    from_st(args, i);
+                    from_st(args, j);
+                    args.push(i != j);
+                } else {
+                    from_st(args_str, s);
+                    from_st(args_str, l);
+                    args.push(s != l);
+                    typeOfExpression = num;
+                }
+                break;
+
+            case EQ:
+                if (typeOfExpression == num) {
+                    from_st ( args, i );
+                    from_st ( args, j );
+                    if (table_of_ident[j].get_type_of_id() == REAL_VAR) {
+                        table_of_ident[(int) j].set_value((double) i);
+                        args.push((double)i);
+                    }
+                    else {
+                        table_of_ident[(int) j].set_value((int) i);
+                        args.push((int)i);
+                    }
+
+                } else {
+                    from_st(args_str, s);
+                    from_st(args, j);
+                    table_of_ident[j].set_value(s);
+                    args_str.push(s);
+                    typeOfExpression = str;
+                }
+                table_of_ident[j].set_init();
+                break;
+
+            case SEMICOLON:
+                if (typeOfExpression == num) from_st(args, i);
+                else from_st(args_str, s);
+                break;
+
+            default:
+                throw "Unexpected element";
+        }//end of switch
+        ++index;
+    };//end of while
+    cout << "Finish of executing!!!" << endl;
+}
+
+class Interpretator {
+    Parser   pars;
+    Executor E;
+public:
+    explicit Interpretator ( const char* program ): pars (program) {}
+    void     interpretation();
+};
+
+void Interpretator::interpretation () {
+    pars.analyse();
+    for (vector <Lexeme>::iterator it = pars.poliz.begin(); it != pars.poliz.end(); it++)
+    {
+        cout << *it << '\n';
+    }
+    vector <Ident> :: iterator k;
+    k = table_of_ident.begin();
+    while ( k != table_of_ident.end())
+    {
+        cout << *k << '\n';
+        k++;
+    }
+    E.execute( pars.poliz );
+    k = table_of_ident.begin();
+    while ( k != table_of_ident.end())
+    {
+        cout << *k << '\n';
+        k++;
+    }
+}
+
+int main () {
+    try {
+        Interpretator I ( "program.txt" );
+        I.interpretation ();
+        return 0;
+    }
+    catch ( char c ) {
+        cout << "unexpected symbol " << c << endl;
+        return 1;
+    }
+    catch ( Lexeme l ) {
+        cout << "unexpected lexeme" << l << endl;
+        return 1;
+    }
+    catch ( const char *source ) {
+        cout << source << endl;
+        return 1;
+    }
+    vector <Ident> :: iterator k;
+    k = table_of_ident.begin();
+    while ( k != table_of_ident.end())
+    {
+        cout << *k << '\n';
+        k++;
+    }
+}
+/*
+//---------------------------------------------------------------------------------------------------------
 int main(int args, char const *argv[]) {
-        Parser parser("program.txt"/*argv[1]*/);
+        Parser parser("program.txt");
         try {
             parser.analyse();
             for (vector <Lexeme>::iterator it = parser.poliz.begin(); it != parser.poliz.end(); it++)
@@ -1060,3 +1419,4 @@ int main(int args, char const *argv[]) {
             k++;
         }
 }
+*/
