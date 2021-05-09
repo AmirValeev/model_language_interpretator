@@ -1,10 +1,8 @@
 program
 {
-int w = 898, a, b = 6, c;
+int w = 898, a = 0, b = 6, c;
 real f = 3.45, e = -66.23;
 string x = "abcd", y, z = "abcd";
 /*w = (((x + z) == "asad") or (w < a));*/
-c = 0;
-while (c != 10)
-{read(c);}
+e = a = f;
 }

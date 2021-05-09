@@ -897,6 +897,7 @@ void Parser::O1() {
                 eq_type();
                 poliz.push_back ( Lexeme( EQ ) );
             } */
+            if (l_type != SEMICOLON) throw "Semicolon expected!";
             eq_type();
             poliz.push_back ( Lexeme( EQ ) );
             st_lex.pop();
@@ -916,12 +917,13 @@ void Parser::O1() {
             gl();
         } else if (l_type == LABEL) {
             table_of_label[curr_lex.get_number()].set_line(poliz.size());
-        }
+        } else throw "Unexpected Lexeme!";
     cout << "End of O1 - " << curr_lex << scanner.get_line() << '\n';
 }
 
 void Parser::E0()
 {
+    flag_for_id = true;
     cout << "Beginning of E0 - " << curr_lex << scanner.get_line() << '\n';
     int i = 0;
     E();
@@ -998,7 +1000,6 @@ void Parser::F()
         gl();
         st_lex.push(INT);
         st_lex.push(MIN);
-        cout << "HELLLOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO - " << curr_lex.int_val <<'\n';
         poliz.push_back(Lexeme(0, CONST_INT));
         F();
         check_op();
@@ -1041,9 +1042,8 @@ void Parser::F()
     }
     else if (l_type == L_C_BRACKET)
     {
-        flag_for_id = false;
         gl();
-        E();
+        E0();
         if (l_type == R_C_BRACKET)
             gl();
         else throw curr_lex;
@@ -1214,7 +1214,7 @@ void Executor::execute ( vector<Lexeme> & poliz ) {
             case SLASH:
                 from_st ( args, i );
                 from_st ( args, j );
-                if (!i) {
+                if (i) {
                     args.push ( j / i );
                     break;
                 }
